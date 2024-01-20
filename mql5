@@ -1,0 +1,82 @@
+mql5
+//+------------------------------------------------------------------+
+//|                                          Tsunami Forex Software |
+//|                                             forexroboteasy.com  |
+//|                                        Developed by Forex Robot Easy Team|
+//+------------------------------------------------------------------+
+
+// Global variables
+input int D1 = 5; // Alteration threshold for average price
+input int T1 = 3; // Time threshold for average price alteration
+input double orderSize = 0.01; // Predefined order size
+input double stopLossMultiplier = 3; // Multiplier for StopLoss value
+int ticket = -1; // Order ticket number
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   // Set the flag for dynamic StopLoss activation
+   OrderSelect(ticket, SELECT_BY_TICKET);
+   if(OrderType() != OP_BUY) // If initial order is Sell
+      OrderStopLoss() = 0; // Set StopLoss to 0 initially
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   // Calculate average price
+   double averagePrice = CalculateAveragePrice();
+
+   // Check for notable price movement
+   if (CheckPriceMovement(averagePrice))
+   {
+      // Execute first order in the direction of price movement
+      if (averagePrice > NormalizeDouble(iClose(Symbol(), PERIOD_M1, 1), Digits))
+      {
+         ticket = OrderSend(Symbol(), OP_BUY, orderSize, Ask, 0, 0, 0, 'Tsunami', 0, 0, Green);
+         if (ticket < 0)
+            Print('Error opening BUY order:', GetLastError());
+      } 
+      else if (averagePrice < NormalizeDouble(iClose(Symbol(), PERIOD_M1, 1), Digits))
+      {
+         ticket = OrderSend(Symbol(), OP_SELL, orderSize, Bid, 0, 0, 0, 'Tsunami', 0, 0, Red);
+         if (ticket < 0)
+            Print('Error opening SELL order:', GetLastError());
+      }
+   }
+
+   // Check if StopLoss needs to be activated
+   if (ticket >= 0 && OrderType() == OP_SELL && OrderStopLoss() == 0)
+   {
+      double stopLossValue = stopLossMultiplier * T1;
+      OrderModify(ticket, 0, 0, 0, 0, 0, stopLossValue, '');
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Calculate average price                                          |
+//+------------------------------------------------------------------+
+double CalculateAveragePrice()
+{
+   double sum = 0;
+   for (int i = 0; i < T1; i++)
+      sum += iClose(Symbol(), PERIOD_M1, i);
+   return sum / T1;
+}
+
+//+------------------------------------------------------------------+
+//| Check for notable price movement                                  |
+//+------------------------------------------------------------------+
+bool CheckPriceMovement(double averagePrice)
+{
+   double currentPrice = NormalizeDouble(iClose(Symbol(), PERIOD_M1, 1), Digits);
+   if (MathAbs(currentPrice - averagePrice) > D1)
+      return true;
+   else
+      return false;
+}
